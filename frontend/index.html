@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en" class="bg-black">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>M2 AI</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234F63FF'/%3E%3Ctext x='16' y='21.5' font-family='Arial' font-size='14' font-weight='700' text-anchor='middle' fill='white'%3EM2%3C/text%3E%3C/svg%3E">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind Play CDN keeps local setup to zero steps. For production, compile Tailwind (see README). -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Bricolage Grotesque"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            body: ['"Instrument Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            page: '#000000',
+            panel: '#0E0E11',
+            raised: '#1A1A1F',
+            line: '#2B2B32',
+            fg: '#F4F4F5',
+            dim: '#9C9CA8',
+            accent: '#4F63FF',
+            'accent-hi': '#7080FF',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html { -webkit-text-size-adjust: 100%; color-scheme: dark; }
+    body { font-feature-settings: "kern", "liga"; }
+    .no-scrollbar { scrollbar-width: none; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    @media (prefers-reduced-motion: no-preference) {
+      #modal:not(.hidden) .sheet { animation: rise .22s ease-out; }
+      @keyframes rise { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-page font-body text-fg antialiased flex flex-col">
+
+  <main class="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 pt-6 sm:px-6">
+
+    <button type="button" id="home-btn" class="rounded-md font-display text-xl font-bold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">M2 AI</button>
+
+    <!-- Video finder -->
+    <div class="mt-5 rounded-2xl border border-line bg-panel">
+      <form id="search-form" class="flex flex-col gap-2 p-2 sm:flex-row" autocomplete="off">
+        <label for="q" class="sr-only">Video link or search words</label>
+        <div class="relative flex-1">
+          <svg class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-dim" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="q" name="q" type="text" inputmode="url" spellcheck="false" maxlength="500"
+                 placeholder="Paste a video link, or type what you're looking for"
+                 class="h-14 w-full rounded-xl bg-raised pl-12 pr-4 text-base text-fg placeholder:text-dim focus:outline-none focus:ring-2 focus:ring-accent">
+        </div>
+        <button id="search-btn" type="submit"
+                class="h-14 rounded-xl bg-accent px-7 text-base font-semibold text-white transition-colors hover:bg-accent-hi focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-hi focus-visible:ring-offset-2 focus-visible:ring-offset-panel disabled:cursor-wait disabled:opacity-70">
+          Find videos
+        </button>
+      </form>
+      <div id="tabs" role="toolbar" aria-label="Filters" class="no-scrollbar flex items-center gap-1 overflow-x-auto border-t border-line px-2 py-2"></div>
+    </div>
+
+    <!-- Results -->
+    <section aria-live="polite" class="mt-8">
+      <div id="notices" class="mb-4 space-y-2"></div>
+      <div id="results"></div>
+      <div id="sentinel" class="h-12"></div>
+      <p id="more-status" class="pb-4 text-center text-sm text-dim"></p>
+    </section>
+  </main>
+
+  <footer class="mx-auto w-full max-w-7xl px-4 pb-8 text-sm text-dim sm:px-6">
+    Only save videos you own or have permission to download, and follow each platform's terms of service.
+  </footer>
+
+  <!-- Player -->
+  <div id="viewer" class="fixed inset-0 z-40 hidden bg-black" role="dialog" aria-modal="true" aria-label="Video player">
+    <div id="v-stage" class="absolute inset-0 flex items-center justify-center px-2 pb-4 pt-16 sm:px-16"></div>
+
+    <div class="absolute inset-x-0 top-0 flex items-center gap-3 bg-gradient-to-b from-black/90 to-transparent p-3 sm:p-4">
+      <span id="v-badge" class="shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold"></span>
+      <p id="v-title" class="min-w-0 flex-1 truncate text-sm font-medium"></p>
+      <button type="button" id="v-auto" aria-pressed="true"
+              class="shrink-0 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">Autoplay next: on</button>
+      <a id="v-open" target="_blank" rel="noopener noreferrer"
+         class="hidden shrink-0 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-fg hover:border-dim focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:inline-block">Open original</a>
+      <button type="button" id="v-download"
+              class="shrink-0 rounded-full bg-accent px-4 py-1.5 text-xs font-semibold text-white hover:bg-accent-hi focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-hi">Download</button>
+      <button type="button" id="v-close" aria-label="Close player"
+              class="h-9 w-9 shrink-0 rounded-full bg-raised text-fg hover:bg-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+        <svg class="mx-auto" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="absolute right-2 top-1/2 flex -translate-y-1/2 flex-col gap-3 sm:right-5">
+      <button type="button" id="v-prev" aria-label="Previous video"
+              class="h-11 w-11 rounded-full bg-raised text-fg hover:bg-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30">
+        <svg class="mx-auto" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
+      </button>
+      <button type="button" id="v-next" aria-label="Next video"
+              class="h-11 w-11 rounded-full bg-raised text-fg hover:bg-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30">
+        <svg class="mx-auto" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Download options modal -->
+  <div id="modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="m-title">
+    <div class="absolute inset-0 bg-black/70" data-close></div>
+    <div class="pointer-events-none absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-6">
+      <div class="sheet pointer-events-auto max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-line bg-panel sm:max-w-lg sm:rounded-3xl">
+
+        <div class="flex gap-4 p-5">
+          <div class="relative aspect-video w-32 shrink-0 overflow-hidden rounded-lg bg-raised sm:w-36">
+            <img id="m-thumb" alt="" class="h-full w-full object-cover" referrerpolicy="no-referrer">
+          </div>
+          <div class="min-w-0 flex-1">
+            <span id="m-badge" class="inline-block rounded-md px-2 py-0.5 text-xs font-semibold"></span>
+            <h2 id="m-title" class="mt-1.5 line-clamp-2 font-display text-lg font-bold leading-snug"></h2>
+            <p id="m-author" class="mt-0.5 truncate text-sm text-dim"></p>
+          </div>
+          <button type="button" data-close aria-label="Close"
+                  class="-mr-1 -mt-1 h-9 w-9 shrink-0 rounded-full text-dim hover:bg-raised hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            <svg class="mx-auto" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+
+        <div id="m-options" class="px-5 pb-5">
+          <h3 class="text-sm font-semibold">Format</h3>
+          <div id="m-kind" class="mt-2 grid grid-cols-2 gap-2">
+            <button type="button" data-kind="video"></button>
+            <button type="button" data-kind="audio"></button>
+          </div>
+          <h3 id="m-quality-label" class="mt-5 text-sm font-semibold"></h3>
+          <div id="m-quality" class="mt-2 flex flex-wrap gap-2"></div>
+          <p id="m-note" class="mt-3 min-h-[1.25rem] text-sm text-dim"></p>
+        </div>
+
+        <div id="m-progress" class="hidden px-5 pb-5">
+          <div class="h-2 overflow-hidden rounded-full bg-raised" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="m-bar-wrap">
+            <div id="m-bar" class="h-full w-0 rounded-full bg-accent transition-[width] duration-300"></div>
+          </div>
+          <p id="m-status" class="mt-3 text-sm font-medium"></p>
+          <p id="m-sub" class="mt-1 text-sm text-dim"></p>
+        </div>
+
+        <div id="m-actions" class="flex justify-end gap-2 border-t border-line p-4 sm:px-5">
+          <button type="button" data-close id="m-cancel"
+                  class="h-11 rounded-xl px-5 text-sm font-semibold text-dim hover:bg-raised hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">Cancel</button>
+          <button type="button" id="m-confirm"
+                  class="h-11 rounded-xl bg-accent px-6 text-sm font-semibold text-white transition-colors hover:bg-accent-hi focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-hi focus-visible:ring-offset-2 focus-visible:ring-offset-panel disabled:cursor-not-allowed disabled:opacity-60">Download</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
